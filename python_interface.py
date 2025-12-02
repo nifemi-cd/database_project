@@ -39,6 +39,17 @@ def print_header(title):
     print(f"{title:^80}")
     print_separator()
 
+def get_f1_logo():
+    """Return a stylized F1 racing logo."""
+    logo = r"""
+                      _____ __
+                     / ___// /
+                    / /_/ / /
+                   / __/ / /
+                  /_/   /_/
+    """
+    return logo
+
 
 def print_welcome():
     """Display the welcome screen."""
@@ -47,7 +58,7 @@ def print_welcome():
     print_separator()
     print()
     # TODO: Replace with actual ASCII art logo
-    print("*placeholder Logo in text*")
+    print(get_f1_logo())
     print()
 
 
