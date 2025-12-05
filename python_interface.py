@@ -5,27 +5,40 @@ A command-line interface for querying Formula 1 data.
 """
 
 import sys
-
-# Database connection placeholder
-# TODO: Replace with your actual database connection
-# import mysql.connector
-# or
-# import psycopg2
+import pymssql
 
 def get_db_connection():
     """
-    Establish and return a database connection.
-    TODO: Implement your database connection here.
+    Establish and return a database connection to MSSQL Server.
+    
+    Returns:
+        pymssql.Connection: Database connection object
+    
+    Note: Update the connection parameters below with your actual database credentials.
     """
-    # Example for MySQL:
-    # connection = mysql.connector.connect(
-    #     host="localhost",
-    #     user="your_username",
-    #     password="your_password",
-    #     database="f1_database"
-    # )
-    # return connection
-    pass
+    try:
+        # MSSQL Server connection parameters
+        # Update these with your actual database credentials
+        server = "uranium.cs.umanitoba.ca"  # or your server name/IP address
+        database = "cs3380"  # or your database name
+        user = "legerc2"  # or your username
+        password = "7895724"  # your password
+        
+        connection = pymssql.connect(
+            server=server,
+            database=database,
+            user=user,
+            password=password
+        )
+        return connection
+    
+    except pymssql.Error as e:
+        print(f"Error connecting to database: {e}")
+        print("\nTroubleshooting tips:")
+        print("1. Make sure SQL Server is running")
+        print("2. Verify your server name, database name, username, and password")
+        print("3. Check if SQL Server allows remote connections")
+        raise
 
 
 def print_separator(char="=", length=80):
@@ -115,12 +128,17 @@ def get_query_definitions():
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
             ],
             "query": """
-                -- TODO: Add your SQL query here
-                -- SELECT driver_name, COUNT(*) as wins
-                -- FROM results
-                -- WHERE year = %s AND position = 1
-                -- GROUP BY driver_name
-                -- ORDER BY wins DESC
+                WITH yearly_wins AS (
+                    SELECT d.forename, d.surname AS driver, COUNT(*) AS wins
+                    FROM result r 
+                    JOIN drivers d ON r.driverId = d.driverId
+                    JOIN race ra ON r.raceId = ra.raceId
+                    WHERE ra.year = %s AND r.positionOrder = 1
+                    GROUP BY r.driverId, d.forename, d.surname
+                )
+                SELECT TOP 5 * 
+                FROM yearly_wins 
+                ORDER BY wins DESC;
             """
         },
         2: {
@@ -339,14 +357,49 @@ def execute_query(qid):
     print(f"Executing Query ID {qid}: {query_info['title']}")
     print("Results:")
     
-    # TODO: Replace this placeholder with actual database execution
-    # connection = get_db_connection()
-    # cursor = connection.cursor()
-    # cursor.execute(query_info["query"], param_values)
-    # results = cursor.fetchall()
-    
-    # Placeholder results display
-    print_results_placeholder(qid, param_values)
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Get the SQL query
+        sql_query = query_info["query"].strip()
+        
+        # Skip if query is a placeholder (contains TODO or is empty)
+        if not sql_query or "-- TODO" in sql_query or sql_query.startswith("--"):
+            print("Query not yet implemented. Please add the SQL query to the query definition.")
+            print_results_placeholder(qid, param_values)
+            cursor.close()
+            connection.close()
+            return
+        
+        # Execute query with parameters
+        # pymssql uses %s as placeholders (like MySQL)
+        if param_values:
+            cursor.execute(sql_query, param_values)
+        else:
+            cursor.execute(sql_query)
+        
+        # Fetch results
+        results = cursor.fetchall()
+        
+        # Get column names
+        columns = [column[0] for column in cursor.description] if cursor.description else []
+        
+        # Format and display results
+        if columns:
+            format_results(columns, results)
+        else:
+            print("Query executed successfully.")
+            if results:
+                print(f"Affected rows: {len(results)}")
+        
+        cursor.close()
+        connection.close()
+        
+    except Exception as e:
+        print(f"Error executing query: {e}")
+        print("Displaying placeholder results instead.")
+        print_results_placeholder(qid, param_values)
 
 
 def print_results_placeholder(qid, params):
