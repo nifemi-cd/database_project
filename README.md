@@ -10,8 +10,7 @@ Group project for our database.
 
 2. **Install dependencies:**
    ```bash
-   source venv/bin/activate
-   pip install -r requirements.txt
+   ./run.sh
    ```
 
 3. **Configure database connection:**
