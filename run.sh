@@ -4,5 +4,8 @@
 # Activate virtual environment
 source venv/bin/activate
 
+# run requirements.txt
+# pip install -r requirements.txt
+
 # Run the application
 python python_interface.py

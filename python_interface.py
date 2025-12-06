@@ -165,14 +165,12 @@ def get_query_definitions():
             "parameters": [],
             "query": """
                 WITH pole_wins AS (
-                    SELECT ra.circuitId, COUNT(*) AS pole_win_count 
-                    FROM result r
+                    SELECT ra.circuitId, COUNT(*) AS pole_win_count FROM result r
                     JOIN race ra ON r.raceId = ra.raceId 
                     WHERE r.grid = 1 AND r.positionOrder = 1 
                     GROUP BY ra.circuitId
                 )
-                SELECT TOP 10 c.name, c.country, pw.pole_win_count 
-                FROM pole_wins pw 
+                SELECT c.name, c.country, pw.pole_win_count FROM pole_wins pw 
                 JOIN circuits c ON pw.circuitId = c.circuitId 
                 ORDER BY pw.pole_win_count DESC;
             """
@@ -221,7 +219,7 @@ def get_query_definitions():
             "description": "Display all constructors in alphabetical order.",
             "parameters": [],
             "query": """
-                -- TODO: Add your SQL query here
+                SELECT name, nationality FROM constructors ORDER BY name;
             """
         },
         8: {
@@ -229,17 +227,32 @@ def get_query_definitions():
             "description": "Display all circuits organized by country.",
             "parameters": [],
             "query": """
-                -- TODO: Add your SQL query here
+                SELECT name, country, location FROM circuits ORDER BY country, name;
             """
         },
         9: {
             "title": "Drivers with Fastest Average Pit Stop Duration",
             "description": "Rank drivers by their average pit stop times.",
             "parameters": [
-                {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
+                # {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH pit_stats AS (
+                    SELECT 
+                        p.driverId, 
+                        AVG(CAST(p.duration AS FLOAT)) AS avg_duration, 
+                        COUNT(*) AS stops
+                    FROM pit_stops p
+                    GROUP BY p.driverId
+                )
+                SELECT TOP 10
+                    d.forename, 
+                    d.surname AS driver, 
+                    ROUND(ps.avg_duration, 3) AS avg_seconds, 
+                    ps.stops
+                FROM pit_stats ps
+                JOIN drivers d ON ps.driverId = d.driverId
+                ORDER BY ps.avg_duration;
             """
         },
         10: {
