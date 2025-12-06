@@ -145,10 +145,18 @@ def get_query_definitions():
             "title": "Constructors Who Never Won at a Specific Circuit",
             "description": "Find constructors that have participated at a circuit but never achieved a victory there.",
             "parameters": [
-                {"name": "circuit", "prompt": "Enter circuit name", "type": str, "validation": None}
+                {"name": "circuitId", "prompt": "Enter circuit Id", "type": int, "validation": lambda x: x > 0}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH winners AS (
+                    SELECT DISTINCT r.constructorId 
+                    FROM result r 
+                    JOIN race ra ON r.raceId = ra.raceId 
+                    WHERE ra.circuitId = %s AND r.positionOrder = 1
+                )
+                SELECT TOP 20 c.name 
+                FROM constructors c 
+                WHERE c.constructorId NOT IN (SELECT constructorId FROM winners);
             """
         },
         3: {
@@ -156,7 +164,17 @@ def get_query_definitions():
             "description": "Identify circuits where starting from pole position most frequently results in a race win.",
             "parameters": [],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH pole_wins AS (
+                    SELECT ra.circuitId, COUNT(*) AS pole_win_count 
+                    FROM result r
+                    JOIN race ra ON r.raceId = ra.raceId 
+                    WHERE r.grid = 1 AND r.positionOrder = 1 
+                    GROUP BY ra.circuitId
+                )
+                SELECT TOP 10 c.name, c.country, pw.pole_win_count 
+                FROM pole_wins pw 
+                JOIN circuits c ON pw.circuitId = c.circuitId 
+                ORDER BY pw.pole_win_count DESC;
             """
         },
         4: {
@@ -174,7 +192,18 @@ def get_query_definitions():
             "description": "List circuits ordered by the number of accidents/retirements due to crashes.",
             "parameters": [],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH accident_races AS (
+                    SELECT r.raceId, COUNT(*) AS accidents 
+                    FROM result r
+                    JOIN status s ON r.statusId = s.statusId
+                    WHERE s.status LIKE '%ccident%' OR s.status LIKE '%ollision%' OR s.status LIKE '%pin%'
+                    GROUP BY r.raceId
+                )
+                SELECT TOP 15 ra.name, ra.year, c.name AS circuit, ar.accidents 
+                FROM accident_races ar 
+                JOIN race ra ON ar.raceId = ra.raceId 
+                JOIN circuits c ON ra.circuitId = c.circuitId 
+                ORDER BY ar.accidents DESC;
             """
         },
         6: {
@@ -229,7 +258,19 @@ def get_query_definitions():
             "description": "Rank nationalities by the average points their drivers score.",
             "parameters": [],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH nationality_stats AS (
+                    SELECT d.nationality, 
+                        COUNT(DISTINCT d.driverId) AS driver_count,
+                        SUM(CASE WHEN r.positionOrder = 1 THEN 1 ELSE 0 END) AS total_wins,
+                        SUM(r.points) AS total_points 
+                    FROM drivers d
+                    JOIN result r ON d.driverId = r.driverId
+                    GROUP BY d.nationality
+                )
+                SELECT TOP 15 nationality, driver_count, total_wins, total_points, 
+                    ROUND(total_points * 1.0 / driver_count, 1) AS avg_points_per_driver
+                FROM nationality_stats 
+                ORDER BY avg_points_per_driver DESC;
             """
         },
         12: {
@@ -237,7 +278,7 @@ def get_query_definitions():
             "description": "Display all race finish statuses (finished, retired, disqualified, etc.).",
             "parameters": [],
             "query": """
-                -- TODO: Add your SQL query here
+               SELECT statusID, status FROM status ORDER BY statusID;
             """
         },
         13: {
@@ -248,7 +289,13 @@ def get_query_definitions():
                 {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                SELECT d.forename, d.surname AS driver, ds.position, 
+                    ds.points AS race_points, ds.wins, ra.name AS race_name, ra.year
+                FROM driver_standings ds
+                JOIN drivers d ON ds.driverId = d.driverId
+                JOIN race ra ON ds.raceId = ra.raceId
+                WHERE ra.year = %s AND ra.round = %s
+                ORDER BY ds.position;
             """
         },
         14: {
@@ -259,7 +306,13 @@ def get_query_definitions():
                 {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                SELECT c.name AS constructor, cs.position, cs.points AS race_points, 
+                    cs.wins, ra.name AS race_name, ra.year 
+                FROM constructor_standings cs
+                JOIN constructors c ON cs.constructorId = c.constructorId
+                JOIN race ra ON cs.raceId = ra.raceId
+                WHERE ra.year = %s AND ra.round = %s
+                ORDER BY cs.position;
             """
         },
         15: {
@@ -270,7 +323,15 @@ def get_query_definitions():
                 {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                SELECT d.forename, d.surname AS driver, r.raceId, c.name AS constructor, 
+                    q.position AS qualifying_position, q.q1, q.q2, q.q3, 
+                    r.name AS race_name, r.year
+                FROM qualifying q
+                JOIN drivers d ON q.driverId = d.driverId
+                JOIN constructors c ON q.constructorId = c.constructorId
+                JOIN race r ON q.raceId = r.raceId
+                WHERE r.year = %s AND r.round = %s
+                ORDER BY q.position;
             """
         },
         16: {
@@ -280,7 +341,19 @@ def get_query_definitions():
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                SELECT TOP 10 
+                    c.name AS constructor, 
+                    COUNT(cr.raceId) AS races_entered, 
+                    SUM(cr.points) AS total_points, 
+                    ROUND(AVG(CAST(cr.points AS FLOAT)), 2) AS avg_points_per_race, 
+                    MAX(cr.points) AS max_points_in_a_race, 
+                    MIN(cr.points) AS min_points_in_a_race
+                FROM constructor_results cr
+                JOIN constructors c ON cr.constructorId = c.constructorId
+                JOIN race r ON cr.raceId = r.raceId
+                WHERE r.year = %s
+                GROUP BY c.name
+                ORDER BY avg_points_per_race DESC;
             """
         }
     }
@@ -385,9 +458,9 @@ def execute_query(qid):
         # Get column names
         columns = [column[0] for column in cursor.description] if cursor.description else []
         
-        # Format and display results
+        # Format and display results with pagination
         if columns:
-            format_results(columns, results)
+            display_paginated_results(columns, results, page_size=10)
         else:
             print("Query executed successfully.")
             if results:
@@ -418,13 +491,14 @@ def print_results_placeholder(qid, params):
     print()
 
 
-def format_results(headers, rows):
+def format_results(headers, rows, show_count=True):
     """
     Format and print query results in a table.
     
     Args:
         headers: List of column headers
         rows: List of tuples containing row data
+        show_count: Whether to show result count at the end
     """
     if not rows:
         print("No results found.")
@@ -454,9 +528,72 @@ def format_results(headers, rows):
         print(row_str)
     
     print(separator)
-    print(f"*{len(rows)} result(s)*")
-    print("*end of results*")
-    print()
+    if show_count:
+        print(f"*{len(rows)} result(s)*")
+        print("*end of results*")
+        print()
+
+
+def display_paginated_results(headers, rows, page_size=10):
+    """
+    Display results with pagination support.
+    
+    Args:
+        headers: List of column headers
+        rows: List of tuples containing row data
+        page_size: Number of rows per page (default: 10)
+    """
+    if not rows:
+        print("No results found.")
+        return
+    
+    total_rows = len(rows)
+    
+    # If results fit on one page, just display them normally
+    if total_rows <= page_size:
+        format_results(headers, rows)
+        return
+    
+    total_pages = (total_rows + page_size - 1) // page_size  # ceiling division
+    current_page = 0
+    
+    while True:
+        # Calculate slice for current page
+        start_idx = current_page * page_size
+        end_idx = min(start_idx + page_size, total_rows)
+        page_rows = rows[start_idx:end_idx]
+        
+        # Display current page
+        print()
+        format_results(headers, page_rows, show_count=False)
+        
+        # Show pagination info
+        print(f"Page {current_page + 1} of {total_pages} (showing {start_idx + 1}-{end_idx} of {total_rows} results)")
+        print()
+        
+        # Build navigation options
+        options = []
+        if current_page > 0:
+            options.append("P - Previous page")
+        if current_page < total_pages - 1:
+            options.append("N - Next page")
+        options.append("Q - Quit pagination")
+        
+        print(" | ".join(options))
+        choice = input("Enter choice: ").strip().upper()
+        
+        if choice == 'N' and current_page < total_pages - 1:
+            current_page += 1
+        elif choice == 'P' and current_page > 0:
+            current_page -= 1
+        elif choice == 'Q':
+            print()
+            print(f"*{total_rows} total result(s)*")
+            print("*end of results*")
+            print()
+            break
+        else:
+            print("Invalid choice. Please try again.")
 
 
 def parse_command(command):
