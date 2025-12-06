@@ -612,7 +612,7 @@ def get_query_definitions():
             "description": "Display all constructors in alphabetical order.",
             "parameters": [],
             "query": """
-                SELECT name, nationality FROM constructors ORDER BY name;
+                SELECT constructorid, name, nationality FROM constructors ORDER BY name;
             """
         },
         8: {
@@ -620,7 +620,7 @@ def get_query_definitions():
             "description": "Display all circuits organized by country.",
             "parameters": [],
             "query": """
-                SELECT name, country, location FROM circuits ORDER BY country, name;
+                SELECT circuitid, name, country, location FROM circuits ORDER BY country, name;
             """
         },
         9: {
@@ -652,11 +652,17 @@ def get_query_definitions():
             "title": "History of Constructor Performance on a Specific Circuit",
             "description": "Show how a constructor has performed at a particular circuit over the years.",
             "parameters": [
-                {"name": "constructor", "prompt": "Enter constructor name", "type": str, "validation": None},
-                {"name": "circuit", "prompt": "Enter circuit name", "type": str, "validation": None}
+                {"name": "constructor", "prompt": "Enter constructor name", "type": str, "validation": lambda x: x.isalpha()},
+                {"name": "circuit", "prompt": "Enter circuit name", "type": str, "validation": lambda x: x.isalpha()}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH team_circuit_performance AS (
+                    SELECT ra.year, SUM(r.points) AS total_points
+                    FROM result r JOIN race ra ON r.raceId = ra.raceId
+                    WHERE r.constructorId = (SELECT constructorid from constructors WHERE name = %s) AND ra.circuitId = (SELECT circuitid from circuits WHERE name = %s)
+                    GROUP BY ra.year)
+                SELECT year, total_points FROM team_circuit_performance
+                ORDER BY year;
             """
         },
         11: {
@@ -692,7 +698,7 @@ def get_query_definitions():
             "description": "Show the championship standings after a specific race.",
             "parameters": [
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
-                {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
+                {"name": "round", "prompt": "Enter round number (up to 24, most seasons had max 16 rounds)", "type": int, "validation": lambda x: x > 0 and x <= 24}
             ],
             "query": """
                 SELECT d.forename, d.surname AS driver, ds.position, 
@@ -709,7 +715,7 @@ def get_query_definitions():
             "description": "Show the constructor championship standings after a specific race.",
             "parameters": [
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
-                {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
+                {"name": "round", "prompt": "Enter round number (up to 24, most seasons had max 16 rounds)", "type": int, "validation": lambda x: x > 0 and x <= 24}
             ],
             "query": """
                 SELECT c.name AS constructor, cs.position, cs.points AS race_points, 
@@ -726,7 +732,7 @@ def get_query_definitions():
             "description": "Display qualifying session results for a particular race.",
             "parameters": [
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
-                {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
+                {"name": "round", "prompt": "Enter round number (up to 24, most seasons had max 16 rounds)", "type": int, "validation": lambda x: x > 0 and x <= 24}
             ],
             "query": """
                 SELECT d.forename, d.surname AS driver, r.raceId, c.name AS constructor, 
@@ -854,6 +860,7 @@ def execute_query(qid):
         # Execute query with parameters
         # pymssql uses %s as placeholders (like MySQL)
         if param_values:
+            print(param_values)
             cursor.execute(sql_query, param_values)
         else:
             cursor.execute(sql_query)
