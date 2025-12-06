@@ -94,7 +94,7 @@ def print_progress_bar(current, total, bar_length=40, prefix="Progress"):
     filled_length = int(bar_length * current // max(total, 1))
     bar = '█' * filled_length + '░' * (bar_length - filled_length)
     
-    sys.stdout.write(f'\r{prefix}: |{bar}| {percent:.1f}% ({current}/{total})')
+    sys.stdout.write(f'\r{prefix}: |\033[32m{bar}\033[34m| \033[33m{percent:.1f}%\033[34m ({current}/{total})')
     sys.stdout.flush()
     
     if current >= total:
@@ -290,7 +290,7 @@ def seed_database(connection):
     
     for i, (file_name, file_path) in enumerate(existing_files):
         # Update progress bar with current file name
-        print_progress_bar(i, total_files, prefix=f"Seeding ({file_name})")
+        print_progress_bar(i, total_files, prefix=f"\033[33mSeeding\033[34m ({file_name})")
         
         success, errors = seed_from_file(connection, file_path, file_name)
         total_success += success
@@ -304,10 +304,10 @@ def seed_database(connection):
     
     print()
     print_separator("-")
-    print(f"SEEDING COMPLETE: {total_success} total records inserted")
+    print(f"\033[33mSEEDING COMPLETE:\033[34m {total_success} total records inserted")
     if total_errors > 0:
         print(f"                  {total_errors} total errors")
-        print(f"  Failed files: {', '.join(failed_files)}")
+        print(f"  \033[33mFailed files:\033[34m {', '.join(failed_files)}")
     print()
     
     return True
@@ -369,11 +369,11 @@ def seed_database_menu():
     print_header("SEED DATABASE")
     print()
     
-    print("This will load data from the seed files into the database.")
-    print("Note: Existing data will NOT be deleted. Use 'C' first to clear if needed.")
+    print("\033[33mThis will load data from the seed files into the database.")
+    print("Note:\033[34m Existing data will NOT be deleted. Use 'C' first to clear if needed.")
     print()
     
-    confirm = input("Do you want to continue? (yes/no): ").strip().lower()
+    confirm = input("\033[33mDo you want to continue? (yes/no):\033[34m ").strip().lower()
     
     if confirm != "yes":
         print()
@@ -384,7 +384,7 @@ def seed_database_menu():
         print()
         print("Connecting to database...")
         connection = get_db_connection()
-        print("✓ Connected successfully")
+        print("\033[32m✓ Connected successfully\033[34m")
         
         # Seed database
         if not seed_database(connection):
@@ -395,17 +395,17 @@ def seed_database_menu():
         connection.close()
         
         print_separator()
-        print(f"{'DATABASE SEEDED SUCCESSFULLY':^80}")
+        print(f"{'\033[33mDATABASE SEEDED SUCCESSFULLY\033[34m':^80}")
         print_separator()
         print()
         
     except Exception as e:
-        print(f"✗ Error during database seeding: {e}")
+        print(f"\033[38;5;196m✗ Error during database seeding:\033[34m {e}")
         print()
-        print("Troubleshooting tips:")
-        print("1. Make sure the database connection is configured correctly")
-        print("2. Check if you have sufficient permissions")
-        print("3. Ensure the seed files are in the correct format")
+        print("\033[33mTroubleshooting tips:\033[34m")
+        print("\033[33m1.\033[34m Make sure the database connection is configured correctly")
+        print("\033[33m2.\033[34m Check if you have sufficient permissions")
+        print("\033[33m3.\033[34m Ensure the seed files are in the correct format")
 
 
 def print_header(title):
