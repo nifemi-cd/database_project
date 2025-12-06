@@ -43,7 +43,7 @@ def get_db_connection():
         raise
 
 
-def print_separator(char="=", length=80):
+def print_separator(char="\033[34m=", length=80):
     """Print a separator line."""
     print(char * length)
 
@@ -258,13 +258,13 @@ def seed_database(connection):
         bool: True if successful, False otherwise
     """
     print()
-    print_header("SEEDING DATABASE")
+    print_header("\033[33mSEEDING DATABASE\033[34m")
     print()
     
     seed_dir = get_seed_directory()
     
     if not os.path.exists(seed_dir):
-        print(f"✗ Seed directory not found: {seed_dir}")
+        print(f"\033[38;5;196m✗ Seed directory not found: {seed_dir}\033[34m")
         return False
     
     seed_files = get_seed_file_order()
@@ -322,11 +322,11 @@ def clear_database_menu():
     print_header("CLEAR DATABASE")
     print()
     
-    print("⚠️  WARNING: This will delete ALL data from the database.")
+    print("⚠️  \033[38;5;196mWARNING:\033[34m This will delete ALL data from the database.")
     print("   This operation cannot be undone!")
     print()
     
-    confirm = input("Are you sure you want to continue? (yes/no): ").strip().lower()
+    confirm = input("\033[33mAre you sure you want to continue? (yes/no):\033[34m ").strip().lower()
     
     if confirm != "yes":
         print()
@@ -411,47 +411,48 @@ def seed_database_menu():
 def print_header(title):
     """Print a centered header with separators."""
     print_separator()
-    print(f"{title:^80}")
+    print(f"\033[33m{title:^80}\033[34m")
     print_separator()
 
 def get_f1_logo():
     """Return a stylized F1 racing logo."""
     logo = r"""
-                      _____ __
-                     / ___// /
-                    / /_/ / /
-                   / __/ / /
-                  /_/   /_/
+                                      _____ __
+                                     / ___// /
+                                    / /_/ / /
+                                   / __/ / /
+                                  /_/   /_/
     """
+
     return logo
 
 
 def print_welcome():
     """Display the welcome screen."""
     print_separator()
-    print(f"{'WELCOME TO F1 DB':^80}")
+    print(f"\033[33m{'WELCOME TO F1 DB':^80}\033[34m")
     print_separator()
     print()
     # TODO: Replace with actual ASCII art logo
-    print(get_f1_logo())
+    print(f"\033[38;5;196m{get_f1_logo()}\033[0m")
     print()
 
 
 def print_menu():
     """Display the main menu options."""
     print_separator()
-    print(f"{'MENU OPTIONS':^80}")
+    print(f"\033[33m{'MENU OPTIONS':^80}\033[34m")
     print_separator()
     print()
-    print("    D  :  Display Queries")
+    print("    \033[33mD\033[34m  :  Display Queries")
     print()
-    print("    C  :  Clear Database (Delete all data)")
+    print("    \033[33mC\033[34m  :  Clear Database (Delete all data)")
     print()
-    print("    S  :  Seed Database (Load data from seed files)")
+    print("    \033[33mS\033[34m  :  Seed Database (Load data from seed files)")
     print()
-    print("    Q  :  Quit Program")
+    print("    \033[33mQ\033[34m  :  Quit Program")
     print()
-    print("    H  :  Display Menu Options")
+    print("    \033[33mH\033[34m  :  Display Menu Options")
     print()
 
 
@@ -465,17 +466,17 @@ def print_queries():
     print()
     
     # Table formatting
-    print("+-----+------------------------------------------------------------------------+")
-    print("| QID | Title                                                                  |")
+    print("\033[34m+-----+------------------------------------------------------------------------+")
+    print("| \033[33mQID\033[34m| \033[33mTitle\033[34m                                                                  |")
     print("+-----+------------------------------------------------------------------------+")
     
     for qid, query_info in queries.items():
         title = query_info["title"]
-        print(f"| {qid:<3} | {title:<70} |")
+        print(f"|\033[33m {qid:<3} \033[0m\033[34m| {title:<70} |")
         print("+-----+------------------------------------------------------------------------+")
     
     print()
-    print('To use any query enter command "use <QID>"')
+    print('To use any query enter command "\033[33muse <QID>\033[34m"')
     print()
 
 
@@ -511,7 +512,7 @@ def get_query_definitions():
             "title": "Constructors Who Never Won at a Specific Circuit",
             "description": "Find constructors that have participated at a circuit but never achieved a victory there.",
             "parameters": [
-                {"name": "circuitId", "prompt": "Enter circuit Id", "type": int, "validation": lambda x: x > 0}
+                {"name": "circuitId", "prompt": "Enter circuit Id", "type": int, "validation": lambda x: x > 0 and x <= 77}
             ],
             "query": """
                 WITH winners AS (
@@ -520,7 +521,7 @@ def get_query_definitions():
                     JOIN race ra ON r.raceId = ra.raceId 
                     WHERE ra.circuitId = %s AND r.positionOrder = 1
                 )
-                SELECT TOP 20 c.name 
+                SELECT c.name 
                 FROM constructors c 
                 WHERE c.constructorId NOT IN (SELECT constructorId FROM winners);
             """
@@ -751,7 +752,7 @@ def get_parameter_input(param):
                 if "year" in param["name"].lower():
                     prompt_text += " (Year should be between 1950 - 2024)"
             
-            user_input = input(f"{prompt_text}: ")
+            user_input = input(f"\033[33m{prompt_text}: \033[34m")
             
             # Convert to appropriate type
             if param["type"] == int:
@@ -790,9 +791,9 @@ def execute_query(qid):
     query_info = queries[qid]
     
     print()
-    print(f"You've selected QID {qid}")
-    print(f"Title: {query_info['title']}")
-    print(f"Description: {query_info['description']}")
+    print(f"\033[33mYou've selected QID {qid}")
+    print(f"Title:\033[34m {query_info['title']}")
+    print(f"\033[33mDescription:\033[34m {query_info['description']}")
     print()
     
     # Collect parameters
@@ -806,8 +807,8 @@ def execute_query(qid):
         print()
     
     # Execute the query
-    print(f"Executing Query ID {qid}: {query_info['title']}")
-    print("Results:")
+    print(f"\033[33mExecuting Query ID {qid}:\033[34m {query_info['title']}")
+    print("\033[33mResults:\033[34m")
     
     try:
         connection = get_db_connection()
@@ -897,19 +898,19 @@ def format_results(headers, rows, show_count=True):
     print(separator)
     
     # Print headers
-    header_row = "|" + "|".join(f" {h:<{col_widths[i]-1}}" for i, h in enumerate(headers)) + "|"
+    header_row = "|" + "|".join(f"\033[33m {h:<{col_widths[i]-1}}\033[34m" for i, h in enumerate(headers)) + "|"
     print(header_row)
     print(separator)
     
     # Print rows
     for row in rows:
-        row_str = "|" + "|".join(f" {str(row[i]) if i < len(row) else '':<{col_widths[i]-1}}" for i in range(len(headers))) + "|"
+        row_str = "|" + "|".join(f"\033[32m {str(row[i]) if i < len(row) else '':<{col_widths[i]-1}}\033[34m" for i in range(len(headers))) + "|"
         print(row_str)
     
     print(separator)
     if show_count:
         print(f"*{len(rows)} result(s)*")
-        print("*end of results*")
+        print("\033[33m*end of results*\033[34m")
         print()
 
 
@@ -947,19 +948,19 @@ def display_paginated_results(headers, rows, page_size=10):
         format_results(headers, page_rows, show_count=False)
         
         # Show pagination info
-        print(f"Page {current_page + 1} of {total_pages} (showing {start_idx + 1}-{end_idx} of {total_rows} results)")
+        print(f"\033[33mPage {current_page + 1} of {total_pages}\033[34m (showing {start_idx + 1}-{end_idx} of {total_rows} results)")
         print()
         
         # Build navigation options
         options = []
         if current_page > 0:
-            options.append("P - Previous page")
+            options.append("\033[33mP\033[34m - Previous page")
         if current_page < total_pages - 1:
-            options.append("N - Next page")
-        options.append("Q - Quit pagination")
+            options.append("\033[33mN\033[34m - Next page")
+        options.append("\033[33mQ\033[34m - Quit pagination")
         
         print(" | ".join(options))
-        choice = input("Enter choice: ").strip().upper()
+        choice = input("\033[33mEnter choice:\033[34m ").strip().upper()
         
         if choice == 'N' and current_page < total_pages - 1:
             current_page += 1
@@ -968,11 +969,11 @@ def display_paginated_results(headers, rows, page_size=10):
         elif choice == 'Q':
             print()
             print(f"*{total_rows} total result(s)*")
-            print("*end of results*")
+            print("\033[33m*end of results*\033[34m")
             print()
             break
         else:
-            print("Invalid choice. Please try again.")
+            print("\033[33mInvalid choice. Please try again.\033[34m")
 
 
 def parse_command(command):
@@ -998,7 +999,7 @@ def main():
     
     while True:
         print_separator()
-        command = input("f1> ")
+        command = input("\033[33mf1> \033[34m")
         
         action, args = parse_command(command)
         
