@@ -512,7 +512,7 @@ def get_query_definitions():
             "title": "Constructors Who Never Won at a Specific Circuit",
             "description": "Find constructors that have participated at a circuit but never achieved a victory there.",
             "parameters": [
-                {"name": "circuitId", "prompt": "Enter circuit Id", "type": int, "validation": lambda x: x > 0 and x <= 77}
+                {"name": "circuitId", "prompt": "Enter circuit Id between 0 and 77", "type": int, "validation": lambda x: x > 0 and x <= 77}
             ],
             "query": """
                 WITH winners AS (
@@ -549,7 +549,15 @@ def get_query_definitions():
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH position_gains AS (
+                    SELECT r.driverId, SUM(r.grid - r.positionOrder) AS total_position_gain
+                    FROM result r JOIN race ra ON r.raceId = ra.raceId
+                    WHERE ra.year = %s AND r.positionOrder <= 20 AND r.grid > 0
+                    GROUP BY r.driverId HAVING COUNT(*) >= 5
+                )
+                SELECT TOP 10 d.forename, d.surname AS driver, pg.total_position_gain FROM position_gains pg
+                JOIN drivers d ON pg.driverId = d.driverId ORDER BY pg.total_position_gain DESC;
+
             """
         },
         5: {
@@ -575,10 +583,28 @@ def get_query_definitions():
             "title": "Drivers Who Consistently Finish in Points",
             "description": "Find drivers with the highest percentage of points finishes.",
             "parameters": [
-                {"name": "min_races", "prompt": "Enter minimum number of races", "type": int, "validation": lambda x: x > 0}
+                {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
+                {"name": "min_races", "prompt": "Enter minimum number of races", "type": int, "validation": lambda x: x > 0}   
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH points_finishes AS (
+                    SELECT 
+                        r.driverId,
+                        COUNT(*) AS races,
+                        SUM(CASE WHEN r.points > 0 THEN 1 ELSE 0 END) AS points_finishes
+                    FROM result r 
+                    JOIN race ra ON r.raceId = ra.raceId
+                    WHERE ra.year = %s
+                    GROUP BY r.driverId
+                    HAVING COUNT(*) >= %s
+                )
+                SELECT TOP 10 
+                    d.forename,
+                    d.surname AS driver,
+                    FORMAT(pf.points_finishes * 100.0 / pf.races, 'N2') + '%' AS consistency_percentage
+                FROM points_finishes pf 
+                JOIN drivers d ON pf.driverId = d.driverId
+                ORDER BY consistency_percentage DESC;
             """
         },
         7: {
