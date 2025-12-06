@@ -136,7 +136,7 @@ def get_query_definitions():
                     WHERE ra.year = %s AND r.positionOrder = 1
                     GROUP BY r.driverId, d.forename, d.surname
                 )
-                SELECT TOP 5 * 
+                SELECT top 5 *
                 FROM yearly_wins 
                 ORDER BY wins DESC;
             """
