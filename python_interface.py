@@ -5,6 +5,8 @@ A command-line interface for querying Formula 1 data.
 """
 
 import sys
+import os
+import re
 import pymssql
 
 def get_db_connection():
@@ -21,8 +23,8 @@ def get_db_connection():
         # Update these with your actual database credentials
         server = "uranium.cs.umanitoba.ca"  # or your server name/IP address
         database = "cs3380"  # or your database name
-        user = "legerc2"  # or your username
-        password = "7895724"  # your password
+        user = "taiwoa5"  # or your username
+        password = "7980132"  # your password
         
         connection = pymssql.connect(
             server=server,
@@ -44,6 +46,366 @@ def get_db_connection():
 def print_separator(char="=", length=80):
     """Print a separator line."""
     print(char * length)
+
+
+def get_seed_directory():
+    """Get the path to the seed directory."""
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, "seed")
+
+
+def convert_sqlite_to_mssql(sql_content):
+    """
+    Convert SQLite SQL syntax to MSSQL syntax.
+    
+    Args:
+        sql_content: SQL content in SQLite format
+    
+    Returns:
+        SQL content converted to MSSQL format
+    """
+    # Remove BEGIN TRANSACTION; and COMMIT; statements
+    sql_content = re.sub(r'BEGIN TRANSACTION;?\s*', '', sql_content, flags=re.IGNORECASE)
+    sql_content = re.sub(r'COMMIT;?\s*', '', sql_content, flags=re.IGNORECASE)
+    
+    # Replace double quotes with square brackets for identifiers
+    # This regex finds "identifier" and replaces with [identifier]
+    sql_content = re.sub(r'"([^"]+)"', r'[\1]', sql_content)
+    
+    return sql_content
+
+
+def print_progress_bar(current, total, bar_length=40, prefix="Progress"):
+    """
+    Print a progress bar to the console.
+    
+    Args:
+        current: Current progress count
+        total: Total count
+        bar_length: Length of the progress bar
+        prefix: Prefix text for the progress bar
+    """
+    if total == 0:
+        percent = 100
+    else:
+        percent = (current / total) * 100
+    
+    filled_length = int(bar_length * current // max(total, 1))
+    bar = '█' * filled_length + '░' * (bar_length - filled_length)
+    
+    sys.stdout.write(f'\r{prefix}: |{bar}| {percent:.1f}% ({current}/{total})')
+    sys.stdout.flush()
+    
+    if current >= total:
+        print()  # New line when complete
+
+
+def get_table_deletion_order():
+    """
+    Return the order in which tables should be deleted (dependent tables first).
+    This respects foreign key constraints.
+    """
+    return [
+        "lap",
+        "pit_stops",
+        "qualifying",
+        "result",
+        "constructor_results",
+        "constructor_standings",
+        "driver_standings",
+        "race",
+        "circuits",
+        "constructors",
+        "drivers",
+        "status"
+    ]
+
+
+def get_seed_file_order():
+    """
+    Return the order in which seed files should be executed (parent tables first).
+    This respects foreign key constraints.
+    """
+    return [
+        "status.sql",
+        "drivers.sql",
+        "constructors.sql",
+        "circuits.sql",
+        "race.sql",
+        "driver_standings.sql",
+        "constructor_standings.sql",
+        "constructor_results.sql",
+        "result.sql",
+        "qualifying.sql",
+        "pit_stops.sql",
+        "lap.sql"
+    ]
+
+
+def delete_all_data(connection):
+    """
+    Delete all data from all tables in the correct order.
+    
+    Args:
+        connection: Database connection object
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    print()
+    print_header("DELETING ALL DATA")
+    print()
+    
+    tables = get_table_deletion_order()
+    cursor = connection.cursor()
+    
+    total_tables = len(tables)
+    deleted_count = 0
+    
+    for i, table in enumerate(tables):
+        try:
+            # Try to delete from the table
+            cursor.execute(f"DELETE FROM [{table}]")
+            connection.commit()
+            deleted_count += 1
+            print_progress_bar(i + 1, total_tables, prefix=f"Deleting tables")
+        except Exception as e:
+            # Table might not exist, continue
+            print_progress_bar(i + 1, total_tables, prefix=f"Deleting tables")
+            continue
+    
+    print()
+    print(f"✓ Deleted data from {deleted_count} tables")
+    cursor.close()
+    return True
+
+
+def count_statements_in_file(file_path):
+    """
+    Count the number of INSERT statements in a SQL file.
+    
+    Args:
+        file_path: Path to the SQL file
+    
+    Returns:
+        int: Number of INSERT statements
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return content.upper().count('INSERT INTO')
+    except:
+        return 0
+
+
+def seed_from_file(connection, file_path, file_name):
+    """
+    Execute all SQL statements from a seed file in one query.
+    
+    Args:
+        connection: Database connection object
+        file_path: Path to the SQL file
+        file_name: Name of the file (for display)
+    
+    Returns:
+        tuple: (success_count, error_count)
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except Exception as e:
+        return 0, 1
+    
+    # Convert SQLite syntax to MSSQL
+    content = convert_sqlite_to_mssql(content)
+    
+    # Split into individual statements
+    statements = [s.strip() for s in content.split(';') if s.strip()]
+    
+    # Filter to only INSERT statements
+    insert_statements = [s for s in statements if s.upper().startswith('INSERT')]
+    
+    if not insert_statements:
+        return 0, 0
+    
+    cursor = connection.cursor()
+    total = len(insert_statements)
+    
+    # Join ALL statements and execute in one query
+    full_query = ';\n'.join(insert_statements)
+    
+    try:
+        cursor.execute(full_query)
+        connection.commit()
+        cursor.close()
+        return total, 0
+    except Exception as e:
+        # If full execution fails, return as error
+        cursor.close()
+        return 0, total
+
+
+def seed_database(connection):
+    """
+    Seed the database with data from all seed files.
+    Shows a single progress bar for all files.
+    
+    Args:
+        connection: Database connection object
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    print()
+    print_header("SEEDING DATABASE")
+    print()
+    
+    seed_dir = get_seed_directory()
+    
+    if not os.path.exists(seed_dir):
+        print(f"✗ Seed directory not found: {seed_dir}")
+        return False
+    
+    seed_files = get_seed_file_order()
+    
+    # Check which files exist
+    existing_files = []
+    for file_name in seed_files:
+        file_path = os.path.join(seed_dir, file_name)
+        if os.path.exists(file_path):
+            existing_files.append((file_name, file_path))
+    
+    if not existing_files:
+        print("✗ No seed files found")
+        return False
+    
+    total_files = len(existing_files)
+    print(f"Found {total_files} seed files to process")
+    print()
+    
+    total_success = 0
+    total_errors = 0
+    failed_files = []
+    
+    for i, (file_name, file_path) in enumerate(existing_files):
+        # Update progress bar with current file name
+        print_progress_bar(i, total_files, prefix=f"Seeding ({file_name})")
+        
+        success, errors = seed_from_file(connection, file_path, file_name)
+        total_success += success
+        total_errors += errors
+        
+        if errors > 0:
+            failed_files.append(file_name)
+    
+    # Final progress bar update
+    print_progress_bar(total_files, total_files, prefix="Seeding (complete)      ")
+    
+    print()
+    print_separator("-")
+    print(f"SEEDING COMPLETE: {total_success} total records inserted")
+    if total_errors > 0:
+        print(f"                  {total_errors} total errors")
+        print(f"  Failed files: {', '.join(failed_files)}")
+    print()
+    
+    return True
+
+
+def clear_database_menu():
+    """
+    Menu option to delete all data from all tables.
+    Shows progress for the operation.
+    """
+    print()
+    print_header("CLEAR DATABASE")
+    print()
+    
+    print("⚠️  WARNING: This will delete ALL data from the database.")
+    print("   This operation cannot be undone!")
+    print()
+    
+    confirm = input("Are you sure you want to continue? (yes/no): ").strip().lower()
+    
+    if confirm != "yes":
+        print()
+        print("Operation cancelled.")
+        return
+    
+    try:
+        print()
+        print("Connecting to database...")
+        connection = get_db_connection()
+        print("✓ Connected successfully")
+        
+        # Delete all data
+        if not delete_all_data(connection):
+            print("✗ Failed to delete data")
+            connection.close()
+            return
+        
+        connection.close()
+        
+        print_separator()
+        print(f"{'DATABASE CLEARED SUCCESSFULLY':^80}")
+        print_separator()
+        print()
+        
+    except Exception as e:
+        print(f"✗ Error during database clear: {e}")
+        print()
+        print("Troubleshooting tips:")
+        print("1. Make sure the database connection is configured correctly")
+        print("2. Check if you have sufficient permissions")
+
+
+def seed_database_menu():
+    """
+    Menu option to seed the database from seed files.
+    Shows progress for each file.
+    """
+    print()
+    print_header("SEED DATABASE")
+    print()
+    
+    print("This will load data from the seed files into the database.")
+    print("Note: Existing data will NOT be deleted. Use 'C' first to clear if needed.")
+    print()
+    
+    confirm = input("Do you want to continue? (yes/no): ").strip().lower()
+    
+    if confirm != "yes":
+        print()
+        print("Operation cancelled.")
+        return
+    
+    try:
+        print()
+        print("Connecting to database...")
+        connection = get_db_connection()
+        print("✓ Connected successfully")
+        
+        # Seed database
+        if not seed_database(connection):
+            print("✗ Failed to seed database")
+            connection.close()
+            return
+        
+        connection.close()
+        
+        print_separator()
+        print(f"{'DATABASE SEEDED SUCCESSFULLY':^80}")
+        print_separator()
+        print()
+        
+    except Exception as e:
+        print(f"✗ Error during database seeding: {e}")
+        print()
+        print("Troubleshooting tips:")
+        print("1. Make sure the database connection is configured correctly")
+        print("2. Check if you have sufficient permissions")
+        print("3. Ensure the seed files are in the correct format")
 
 
 def print_header(title):
@@ -82,6 +444,10 @@ def print_menu():
     print_separator()
     print()
     print("    D  :  Display Queries")
+    print()
+    print("    C  :  Clear Database (Delete all data)")
+    print()
+    print("    S  :  Seed Database (Load data from seed files)")
     print()
     print("    Q  :  Quit Program")
     print()
@@ -652,6 +1018,12 @@ def main():
         
         elif action == "H":
             print_menu()
+        
+        elif action == "C":
+            clear_database_menu()
+        
+        elif action == "S":
+            seed_database_menu()
         
         elif action == "USE":
             if args is None:
