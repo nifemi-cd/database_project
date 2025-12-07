@@ -858,7 +858,6 @@ def execute_query(qid):
             return
         
         # Execute query with parameters
-        # pymssql uses %s as placeholders (like MySQL)
         if param_values:
             print(param_values)
             cursor.execute(sql_query, param_values)
