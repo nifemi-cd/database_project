@@ -497,7 +497,7 @@ def get_query_definitions():
             "title": "Constructors Who Never Won at a Specific Circuit",
             "description": "Find constructors that have participated at a circuit but never achieved a victory there.",
             "parameters": [
-                {"name": "circuitId", "prompt": "Enter circuit Id between 0 and 77(Check basic queries for circuit ids)", "type": int, "validation": lambda x: x > 0 and x <= 77}
+                {"name": "circuitId", "prompt": "Enter circuit Id between 1 and 77(Check basic queries for circuit ids)", "type": int, "validation": lambda x: x > 0 and x <= 77}
             ],
             "query": """
                 WITH winners AS (
@@ -513,7 +513,7 @@ def get_query_definitions():
         },
         3: {
             "title": "Circuits Where Pole Position Won Most Often",
-            "description": "Identify circuits where starting from pole position most frequently results in a race win.",
+            "description": "Identify circuits where starting from pole position most frequently results in a race win.\nThe pole position is the most advantageous starting position.",
             "parameters": [],
             "query": """
                 WITH pole_wins AS (
@@ -594,7 +594,7 @@ def get_query_definitions():
         },
         7: {
             "title": "Qualifying vs Race Consistency (Q3 to Podium Conversion)",
-            "description": "This query measures how often drivers convert a top qualifying (Q3) position into a podium finish. It shows drivers with at least 30 top-10 qualifying positions and their conversion rate to podium finishes.",
+            "description": "This query measures how often drivers convert a top qualifying (Q3) position into a podium finish.\nIt shows drivers with at least 30 top-10 qualifying positions and their conversion rate to podium finishes.",
             "parameters": [],
             "query": """
                 WITH top_qualifiers AS (
@@ -650,7 +650,7 @@ def get_query_definitions():
         },
         9: {
             "title": "Drivers with Fastest Average Pit Stop Duration",
-            "description": "Rank drivers by their average pit stop times.",
+            "description": "Rank drivers by their average pit stop times.\nTimes include the entrance and exiting of the pit.",
             "parameters": [
                 # {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
             ],
@@ -1267,7 +1267,7 @@ def execute_basic_query(table_id):
     print()
     print(f"\033[33mExecuting query on {display_name}...\033[34m")
     print()
-    
+    print(sql_query)
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
