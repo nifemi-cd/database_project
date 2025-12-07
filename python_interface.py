@@ -43,7 +43,7 @@ def get_db_connection():
         raise
 
 
-def print_separator(char="=", length=80):
+def print_separator(char="\033[34m=", length=80):
     """Print a separator line."""
     print(char * length)
 
@@ -94,7 +94,7 @@ def print_progress_bar(current, total, bar_length=40, prefix="Progress"):
     filled_length = int(bar_length * current // max(total, 1))
     bar = '█' * filled_length + '░' * (bar_length - filled_length)
     
-    sys.stdout.write(f'\r{prefix}: |{bar}| {percent:.1f}% ({current}/{total})')
+    sys.stdout.write(f'\r{prefix}: |\033[32m{bar}\033[34m| \033[33m{percent:.1f}%\033[34m ({current}/{total})')
     sys.stdout.flush()
     
     if current >= total:
@@ -258,13 +258,13 @@ def seed_database(connection):
         bool: True if successful, False otherwise
     """
     print()
-    print_header("SEEDING DATABASE")
+    print_header("\033[33mSEEDING DATABASE\033[34m")
     print()
     
     seed_dir = get_seed_directory()
     
     if not os.path.exists(seed_dir):
-        print(f"✗ Seed directory not found: {seed_dir}")
+        print(f"\033[38;5;196m✗ Seed directory not found: {seed_dir}\033[34m")
         return False
     
     seed_files = get_seed_file_order()
@@ -290,7 +290,7 @@ def seed_database(connection):
     
     for i, (file_name, file_path) in enumerate(existing_files):
         # Update progress bar with current file name
-        print_progress_bar(i, total_files, prefix=f"Seeding ({file_name})")
+        print_progress_bar(i, total_files, prefix=f"\033[33mSeeding\033[34m ({file_name})")
         
         success, errors = seed_from_file(connection, file_path, file_name)
         total_success += success
@@ -304,10 +304,10 @@ def seed_database(connection):
     
     print()
     print_separator("-")
-    print(f"SEEDING COMPLETE: {total_success} total records inserted")
+    print(f"\033[33mSEEDING COMPLETE:\033[34m {total_success} total records inserted")
     if total_errors > 0:
         print(f"                  {total_errors} total errors")
-        print(f"  Failed files: {', '.join(failed_files)}")
+        print(f"  \033[33mFailed files:\033[34m {', '.join(failed_files)}")
     print()
     
     return True
@@ -322,11 +322,11 @@ def clear_database_menu():
     print_header("CLEAR DATABASE")
     print()
     
-    print("⚠️  WARNING: This will delete ALL data from the database.")
+    print("⚠️  \033[38;5;196mWARNING:\033[34m This will delete ALL data from the database.")
     print("   This operation cannot be undone!")
     print()
     
-    confirm = input("Are you sure you want to continue? (yes/no): ").strip().lower()
+    confirm = input("\033[33mAre you sure you want to continue? (yes/no):\033[34m ").strip().lower()
     
     if confirm != "yes":
         print()
@@ -369,11 +369,11 @@ def seed_database_menu():
     print_header("SEED DATABASE")
     print()
     
-    print("This will load data from the seed files into the database.")
-    print("Note: Existing data will NOT be deleted. Use 'C' first to clear if needed.")
+    print("\033[33mThis will load data from the seed files into the database.")
+    print("Note:\033[34m Existing data will NOT be deleted. Use 'C' first to clear if needed.")
     print()
     
-    confirm = input("Do you want to continue? (yes/no): ").strip().lower()
+    confirm = input("\033[33mDo you want to continue? (yes/no):\033[34m ").strip().lower()
     
     if confirm != "yes":
         print()
@@ -384,7 +384,7 @@ def seed_database_menu():
         print()
         print("Connecting to database...")
         connection = get_db_connection()
-        print("✓ Connected successfully")
+        print("\033[32m✓ Connected successfully\033[34m")
         
         # Seed database
         if not seed_database(connection):
@@ -395,63 +395,64 @@ def seed_database_menu():
         connection.close()
         
         print_separator()
-        print(f"{'DATABASE SEEDED SUCCESSFULLY':^80}")
+        print(f"{'\033[33mDATABASE SEEDED SUCCESSFULLY\033[34m':^80}")
         print_separator()
         print()
         
     except Exception as e:
-        print(f"✗ Error during database seeding: {e}")
+        print(f"\033[38;5;196m✗ Error during database seeding:\033[34m {e}")
         print()
-        print("Troubleshooting tips:")
-        print("1. Make sure the database connection is configured correctly")
-        print("2. Check if you have sufficient permissions")
-        print("3. Ensure the seed files are in the correct format")
+        print("\033[33mTroubleshooting tips:\033[34m")
+        print("\033[33m1.\033[34m Make sure the database connection is configured correctly")
+        print("\033[33m2.\033[34m Check if you have sufficient permissions")
+        print("\033[33m3.\033[34m Ensure the seed files are in the correct format")
 
 
 def print_header(title):
     """Print a centered header with separators."""
     print_separator()
-    print(f"{title:^80}")
+    print(f"\033[33m{title:^80}\033[34m")
     print_separator()
 
 def get_f1_logo():
     """Return a stylized F1 racing logo."""
     logo = r"""
-                      _____ __
-                     / ___// /
-                    / /_/ / /
-                   / __/ / /
-                  /_/   /_/
+                                      _____ __
+                                     / ___// /
+                                    / /_/ / /
+                                   / __/ / /
+                                  /_/   /_/
     """
+
     return logo
 
 
 def print_welcome():
     """Display the welcome screen."""
     print_separator()
-    print(f"{'WELCOME TO F1 DB':^80}")
+    print(f"\033[33m{'WELCOME TO F1 DB':^80}\033[34m")
     print_separator()
     print()
     # TODO: Replace with actual ASCII art logo
-    print(get_f1_logo())
+    print(f"\033[38;5;196m{get_f1_logo()}\033[0m")
     print()
 
 
 def print_menu():
     """Display the main menu options."""
     print_separator()
-    print(f"{'MENU OPTIONS':^80}")
+    print(f"\033[33m{'MENU OPTIONS':^80}\033[34m")
     print_separator()
     print()
-    print("    D  :  Display Queries")
+    print("    \033[33mD\033[34m  :  Display Queries")
     print()
-    print("    C  :  Clear Database (Delete all data)")
+    print("    \033[33mC\033[34m  :  Clear Database (Delete all data)")
     print()
-    print("    S  :  Seed Database (Load data from seed files)")
+    print("    \033[33mS\033[34m  :  Seed Database (Load data from seed files)")
     print()
-    print("    Q  :  Quit Program")
+    print("    \033[33mQ\033[34m  :  Quit Program")
     print()
-    print("    H  :  Display Menu Options")
+    print("    \033[33mH\033[34m  :  Display Menu Options")
     print()
 
 
@@ -465,17 +466,17 @@ def print_queries():
     print()
     
     # Table formatting
-    print("+-----+------------------------------------------------------------------------+")
-    print("| QID | Title                                                                  |")
+    print("\033[34m+-----+------------------------------------------------------------------------+")
+    print("| \033[33mQID\033[34m| \033[33mTitle\033[34m                                                                  |")
     print("+-----+------------------------------------------------------------------------+")
     
     for qid, query_info in queries.items():
         title = query_info["title"]
-        print(f"| {qid:<3} | {title:<70} |")
+        print(f"|\033[33m {qid:<3} \033[0m\033[34m| {title:<70} |")
         print("+-----+------------------------------------------------------------------------+")
     
     print()
-    print('To use any query enter command "use <QID>"')
+    print('To use any query enter command "\033[33muse <QID>\033[34m"')
     print()
 
 
@@ -511,7 +512,7 @@ def get_query_definitions():
             "title": "Constructors Who Never Won at a Specific Circuit",
             "description": "Find constructors that have participated at a circuit but never achieved a victory there.",
             "parameters": [
-                {"name": "circuitId", "prompt": "Enter circuit Id", "type": int, "validation": lambda x: x > 0}
+                {"name": "circuitId", "prompt": "Enter circuit Id between 0 and 77", "type": int, "validation": lambda x: x > 0 and x <= 77}
             ],
             "query": """
                 WITH winners AS (
@@ -520,7 +521,7 @@ def get_query_definitions():
                     JOIN race ra ON r.raceId = ra.raceId 
                     WHERE ra.circuitId = %s AND r.positionOrder = 1
                 )
-                SELECT TOP 20 c.name 
+                SELECT c.name 
                 FROM constructors c 
                 WHERE c.constructorId NOT IN (SELECT constructorId FROM winners);
             """
@@ -548,7 +549,15 @@ def get_query_definitions():
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH position_gains AS (
+                    SELECT r.driverId, SUM(r.grid - r.positionOrder) AS total_position_gain
+                    FROM result r JOIN race ra ON r.raceId = ra.raceId
+                    WHERE ra.year = %s AND r.positionOrder <= 20 AND r.grid > 0
+                    GROUP BY r.driverId HAVING COUNT(*) >= 5
+                )
+                SELECT TOP 10 d.forename, d.surname AS driver, pg.total_position_gain FROM position_gains pg
+                JOIN drivers d ON pg.driverId = d.driverId ORDER BY pg.total_position_gain DESC;
+
             """
         },
         5: {
@@ -574,10 +583,28 @@ def get_query_definitions():
             "title": "Drivers Who Consistently Finish in Points",
             "description": "Find drivers with the highest percentage of points finishes.",
             "parameters": [
-                {"name": "min_races", "prompt": "Enter minimum number of races", "type": int, "validation": lambda x: x > 0}
+                {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
+                {"name": "min_races", "prompt": "Enter minimum number of races", "type": int, "validation": lambda x: x > 0}   
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH points_finishes AS (
+                    SELECT 
+                        r.driverId,
+                        COUNT(*) AS races,
+                        SUM(CASE WHEN r.points > 0 THEN 1 ELSE 0 END) AS points_finishes
+                    FROM result r 
+                    JOIN race ra ON r.raceId = ra.raceId
+                    WHERE ra.year = %s
+                    GROUP BY r.driverId
+                    HAVING COUNT(*) >= %s
+                )
+                SELECT TOP 10 
+                    d.forename,
+                    d.surname AS driver,
+                    FORMAT(pf.points_finishes * 100.0 / pf.races, 'N2') + '%' AS consistency_percentage
+                FROM points_finishes pf 
+                JOIN drivers d ON pf.driverId = d.driverId
+                ORDER BY consistency_percentage DESC;
             """
         },
         7: {
@@ -585,7 +612,7 @@ def get_query_definitions():
             "description": "Display all constructors in alphabetical order.",
             "parameters": [],
             "query": """
-                SELECT name, nationality FROM constructors ORDER BY name;
+                SELECT constructorid, name, nationality FROM constructors ORDER BY name;
             """
         },
         8: {
@@ -593,7 +620,7 @@ def get_query_definitions():
             "description": "Display all circuits organized by country.",
             "parameters": [],
             "query": """
-                SELECT name, country, location FROM circuits ORDER BY country, name;
+                SELECT circuitid, name, country, location FROM circuits ORDER BY country, name;
             """
         },
         9: {
@@ -625,11 +652,17 @@ def get_query_definitions():
             "title": "History of Constructor Performance on a Specific Circuit",
             "description": "Show how a constructor has performed at a particular circuit over the years.",
             "parameters": [
-                {"name": "constructor", "prompt": "Enter constructor name", "type": str, "validation": None},
-                {"name": "circuit", "prompt": "Enter circuit name", "type": str, "validation": None}
+                {"name": "constructor", "prompt": "Enter constructor name", "type": str, "validation": lambda x: x.isalpha()},
+                {"name": "circuit", "prompt": "Enter circuit name", "type": str, "validation": lambda x: x.isalpha()}
             ],
             "query": """
-                -- TODO: Add your SQL query here
+                WITH team_circuit_performance AS (
+                    SELECT ra.year, SUM(r.points) AS total_points
+                    FROM result r JOIN race ra ON r.raceId = ra.raceId
+                    WHERE r.constructorId = (SELECT constructorid from constructors WHERE name = %s) AND ra.circuitId = (SELECT circuitid from circuits WHERE name = %s)
+                    GROUP BY ra.year)
+                SELECT year, total_points FROM team_circuit_performance
+                ORDER BY year;
             """
         },
         11: {
@@ -665,7 +698,7 @@ def get_query_definitions():
             "description": "Show the championship standings after a specific race.",
             "parameters": [
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
-                {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
+                {"name": "round", "prompt": "Enter round number (up to 24, most seasons had max 16 rounds)", "type": int, "validation": lambda x: x > 0 and x <= 24}
             ],
             "query": """
                 SELECT d.forename, d.surname AS driver, ds.position, 
@@ -682,7 +715,7 @@ def get_query_definitions():
             "description": "Show the constructor championship standings after a specific race.",
             "parameters": [
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
-                {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
+                {"name": "round", "prompt": "Enter round number (up to 24, most seasons had max 16 rounds)", "type": int, "validation": lambda x: x > 0 and x <= 24}
             ],
             "query": """
                 SELECT c.name AS constructor, cs.position, cs.points AS race_points, 
@@ -699,7 +732,7 @@ def get_query_definitions():
             "description": "Display qualifying session results for a particular race.",
             "parameters": [
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024},
-                {"name": "round", "prompt": "Enter round number", "type": int, "validation": lambda x: x > 0}
+                {"name": "round", "prompt": "Enter round number (up to 24, most seasons had max 16 rounds)", "type": int, "validation": lambda x: x > 0 and x <= 24}
             ],
             "query": """
                 SELECT d.forename, d.surname AS driver, r.raceId, c.name AS constructor, 
@@ -751,7 +784,7 @@ def get_parameter_input(param):
                 if "year" in param["name"].lower():
                     prompt_text += " (Year should be between 1950 - 2024)"
             
-            user_input = input(f"{prompt_text}: ")
+            user_input = input(f"\033[33m{prompt_text}: \033[34m")
             
             # Convert to appropriate type
             if param["type"] == int:
@@ -790,9 +823,9 @@ def execute_query(qid):
     query_info = queries[qid]
     
     print()
-    print(f"You've selected QID {qid}")
-    print(f"Title: {query_info['title']}")
-    print(f"Description: {query_info['description']}")
+    print(f"\033[33mYou've selected QID {qid}")
+    print(f"Title:\033[34m {query_info['title']}")
+    print(f"\033[33mDescription:\033[34m {query_info['description']}")
     print()
     
     # Collect parameters
@@ -806,8 +839,8 @@ def execute_query(qid):
         print()
     
     # Execute the query
-    print(f"Executing Query ID {qid}: {query_info['title']}")
-    print("Results:")
+    print(f"\033[33mExecuting Query ID {qid}:\033[34m {query_info['title']}")
+    print("\033[33mResults:\033[34m")
     
     try:
         connection = get_db_connection()
@@ -825,8 +858,8 @@ def execute_query(qid):
             return
         
         # Execute query with parameters
-        # pymssql uses %s as placeholders (like MySQL)
         if param_values:
+            print(param_values)
             cursor.execute(sql_query, param_values)
         else:
             cursor.execute(sql_query)
@@ -897,19 +930,19 @@ def format_results(headers, rows, show_count=True):
     print(separator)
     
     # Print headers
-    header_row = "|" + "|".join(f" {h:<{col_widths[i]-1}}" for i, h in enumerate(headers)) + "|"
+    header_row = "|" + "|".join(f"\033[33m {h:<{col_widths[i]-1}}\033[34m" for i, h in enumerate(headers)) + "|"
     print(header_row)
     print(separator)
     
     # Print rows
     for row in rows:
-        row_str = "|" + "|".join(f" {str(row[i]) if i < len(row) else '':<{col_widths[i]-1}}" for i in range(len(headers))) + "|"
+        row_str = "|" + "|".join(f"\033[32m {str(row[i]) if i < len(row) else '':<{col_widths[i]-1}}\033[34m" for i in range(len(headers))) + "|"
         print(row_str)
     
     print(separator)
     if show_count:
         print(f"*{len(rows)} result(s)*")
-        print("*end of results*")
+        print("\033[33m*end of results*\033[34m")
         print()
 
 
@@ -947,19 +980,19 @@ def display_paginated_results(headers, rows, page_size=10):
         format_results(headers, page_rows, show_count=False)
         
         # Show pagination info
-        print(f"Page {current_page + 1} of {total_pages} (showing {start_idx + 1}-{end_idx} of {total_rows} results)")
+        print(f"\033[33mPage {current_page + 1} of {total_pages}\033[34m (showing {start_idx + 1}-{end_idx} of {total_rows} results)")
         print()
         
         # Build navigation options
         options = []
         if current_page > 0:
-            options.append("P - Previous page")
+            options.append("\033[33mP\033[34m - Previous page")
         if current_page < total_pages - 1:
-            options.append("N - Next page")
-        options.append("Q - Quit pagination")
+            options.append("\033[33mN\033[34m - Next page")
+        options.append("\033[33mQ\033[34m - Quit pagination")
         
         print(" | ".join(options))
-        choice = input("Enter choice: ").strip().upper()
+        choice = input("\033[33mEnter choice:\033[34m ").strip().upper()
         
         if choice == 'N' and current_page < total_pages - 1:
             current_page += 1
@@ -968,11 +1001,11 @@ def display_paginated_results(headers, rows, page_size=10):
         elif choice == 'Q':
             print()
             print(f"*{total_rows} total result(s)*")
-            print("*end of results*")
+            print("\033[33m*end of results*\033[34m")
             print()
             break
         else:
-            print("Invalid choice. Please try again.")
+            print("\033[33mInvalid choice. Please try again.\033[34m")
 
 
 def parse_command(command):
@@ -998,7 +1031,7 @@ def main():
     
     while True:
         print_separator()
-        command = input("f1> ")
+        command = input("\033[33mf1> \033[34m")
         
         action, args = parse_command(command)
         
