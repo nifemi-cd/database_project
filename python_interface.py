@@ -1268,7 +1268,6 @@ def execute_basic_query(table_id):
     print()
     print(f"\033[33mExecuting query on {display_name}...\033[34m")
     print()
-    print(sql_query)
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
