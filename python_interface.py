@@ -378,7 +378,8 @@ def seed_database_menu():
         connection.close()
         
         print_separator()
-        print(f"{'\033[33mDATABASE SEEDED SUCCESSFULLY\033[34m':^80}")
+        # print(f"{'\033[33mDATABASE SEEDED SUCCESSFULLY\033[34m':^80}")
+        print("{:^80}".format("\033[33mDATABASE SEEDED SUCCESSFULLY\033[0m"))
         print_separator()
         print()
         
