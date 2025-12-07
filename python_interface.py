@@ -126,8 +126,10 @@ def get_seed_file_order():
     """
     Return the order in which seed files should be executed (parent tables first).
     This respects foreign key constraints.
+    tables.sql is first to create tables if they don't exist.
     """
     return [
+        "tables.sql",
         "status.sql",
         "drivers.sql",
         "constructors.sql",
@@ -202,6 +204,8 @@ def count_statements_in_file(file_path):
 def seed_from_file(connection, file_path, file_name):
     """
     Execute all SQL statements from a seed file in one query.
+    For tables.sql, executes CREATE TABLE statements with IF NOT EXISTS checks.
+    For other files, executes INSERT statements.
     
     Args:
         connection: Database connection object
@@ -217,6 +221,33 @@ def seed_from_file(connection, file_path, file_name):
     except Exception as e:
         return 0, 1
     
+    cursor = connection.cursor()
+    
+    # Special handling for tables.sql - execute CREATE TABLE statements
+    if file_name == "tables.sql":
+        # Split by 'END;' to get each IF block
+        blocks = content.split('END;')
+        blocks = [b.strip() + 'END;' for b in blocks if b.strip() and 'IF NOT EXISTS' in b]
+        
+        if not blocks:
+            cursor.close()
+            return 0, 0
+        
+        success_count = 0
+        error_count = 0
+        
+        for block in blocks:
+            try:
+                cursor.execute(block)
+                connection.commit()
+                success_count += 1
+            except Exception as e:
+                error_count += 1
+        
+        cursor.close()
+        return success_count, error_count
+    
+    # For other files, handle INSERT statements
     # Convert SQLite syntax to MSSQL
     content = convert_sqlite_to_mssql(content)
     
@@ -227,9 +258,9 @@ def seed_from_file(connection, file_path, file_name):
     insert_statements = [s for s in statements if s.upper().startswith('INSERT')]
     
     if not insert_statements:
+        cursor.close()
         return 0, 0
     
-    cursor = connection.cursor()
     total = len(insert_statements)
     
     # Join ALL statements and execute in one query
@@ -385,6 +416,10 @@ def seed_database_menu():
         print("Connecting to database...")
         connection = get_db_connection()
         print("\033[32m✓ Connected successfully\033[34m")
+        print()
+        print("\033[33m⚠️  IMPORTANT: This process may take 2-5 minutes to complete.\033[34m")
+        print("\033[33m   Please be patient and DO NOT close the terminal or stop the process.\033[34m")
+        print()
         
         # Seed database
         if not seed_database(connection):
@@ -444,7 +479,9 @@ def print_menu():
     print(f"\033[33m{'MENU OPTIONS':^80}\033[34m")
     print_separator()
     print()
-    print("    \033[33mD\033[34m  :  Display Queries")
+    print("    \033[33mD\033[34m  :  Analytical Queries (Complex queries with filters)")
+    print()
+    print("    \033[33mB\033[34m  :  Basic Queries (Simple queries with filters)")
     print()
     print("    \033[33mC\033[34m  :  Clear Database (Delete all data)")
     print()
@@ -503,7 +540,7 @@ def get_query_definitions():
                     WHERE ra.year = %s AND r.positionOrder = 1
                     GROUP BY r.driverId, d.forename, d.surname
                 )
-                SELECT top 5 *
+                SELECT *
                 FROM yearly_wins 
                 ORDER BY wins DESC;
             """
@@ -512,7 +549,7 @@ def get_query_definitions():
             "title": "Constructors Who Never Won at a Specific Circuit",
             "description": "Find constructors that have participated at a circuit but never achieved a victory there.",
             "parameters": [
-                {"name": "circuitId", "prompt": "Enter circuit Id between 0 and 77", "type": int, "validation": lambda x: x > 0 and x <= 77}
+                {"name": "circuitId", "prompt": "Enter circuit Id between 0 and 77(Check basic queries for circuit ids)", "type": int, "validation": lambda x: x > 0 and x <= 77}
             ],
             "query": """
                 WITH winners AS (
@@ -555,7 +592,7 @@ def get_query_definitions():
                     WHERE ra.year = %s AND r.positionOrder <= 20 AND r.grid > 0
                     GROUP BY r.driverId HAVING COUNT(*) >= 5
                 )
-                SELECT TOP 10 d.forename, d.surname AS driver, pg.total_position_gain FROM position_gains pg
+                SELECT d.forename, d.surname AS driver, pg.total_position_gain FROM position_gains pg
                 JOIN drivers d ON pg.driverId = d.driverId ORDER BY pg.total_position_gain DESC;
 
             """
@@ -572,7 +609,7 @@ def get_query_definitions():
                     WHERE s.status LIKE '%ccident%' OR s.status LIKE '%ollision%' OR s.status LIKE '%pin%'
                     GROUP BY r.raceId
                 )
-                SELECT TOP 15 ra.name, ra.year, c.name AS circuit, ar.accidents 
+                SELECT ra.name, ra.year, c.name AS circuit, ar.accidents 
                 FROM accident_races ar 
                 JOIN race ra ON ar.raceId = ra.raceId 
                 JOIN circuits c ON ra.circuitId = c.circuitId 
@@ -598,7 +635,7 @@ def get_query_definitions():
                     GROUP BY r.driverId
                     HAVING COUNT(*) >= %s
                 )
-                SELECT TOP 10 
+                SELECT 
                     d.forename,
                     d.surname AS driver,
                     FORMAT(pf.points_finishes * 100.0 / pf.races, 'N2') + '%' AS consistency_percentage
@@ -608,19 +645,59 @@ def get_query_definitions():
             """
         },
         7: {
-            "title": "List All Constructors by Name",
-            "description": "Display all constructors in alphabetical order.",
+            "title": "Qualifying vs Race Consistency (Q3 to Podium Conversion)",
+            "description": "This query measures how often drivers convert a top qualifying (Q3) position into a podium finish. It shows drivers with at least 30 top-10 qualifying positions and their conversion rate to podium finishes.",
             "parameters": [],
             "query": """
-                SELECT constructorid, name, nationality FROM constructors ORDER BY name;
+                WITH top_qualifiers AS (
+                    SELECT q.raceId, q.driverId, q.position AS quali_pos
+                    FROM qualifying q
+                    WHERE q.position <= 10
+                ),
+                podium_finishes AS (
+                    SELECT raceId, driverId
+                    FROM result
+                    WHERE position != '\\N' AND CAST(position AS INT) <= 3
+                )
+                SELECT
+                    d.forename + ' ' + d.surname AS driver,
+                    COUNT(tq.raceId) AS top10_quals,
+                    COUNT(pf.driverId) AS podiums,
+                    FORMAT(ROUND(100.0 * COUNT(pf.driverId) / COUNT(tq.raceId), 1), 'N1') + '%' AS conversion_rate
+                FROM top_qualifiers tq
+                JOIN drivers d ON tq.driverId = d.driverId
+                LEFT JOIN podium_finishes pf ON tq.raceId = pf.raceId AND tq.driverId = pf.driverId
+                GROUP BY tq.driverId, d.forename, d.surname
+                HAVING COUNT(tq.raceId) >= 30
+                ORDER BY ROUND(100.0 * COUNT(pf.driverId) / COUNT(tq.raceId), 1) DESC;
             """
         },
         8: {
-            "title": "List All Circuits by Country and Name",
-            "description": "Display all circuits organized by country.",
+            "title": "Driver Rivalry Head-to-Head (Teammate Battles)",
+            "description": "Compares teammates at the same constructor to see who finished ahead more often. Shows pairs who raced together at least 20 times.",
             "parameters": [],
             "query": """
-                SELECT circuitid, name, country, location FROM circuits ORDER BY country, name;
+                WITH teammate_races AS (
+                    SELECT r1.raceId, r1.constructorId, r1.driverId AS d1, r2.driverId AS d2,
+                           r1.positionOrder AS pos1, r2.positionOrder AS pos2
+                    FROM result r1
+                    JOIN result r2 ON r1.raceId = r2.raceId AND r1.constructorId = r2.constructorId
+                    WHERE r1.driverId < r2.driverId
+                )
+                SELECT
+                    d1.forename + ' ' + d1.surname AS driver1,
+                    d2.forename + ' ' + d2.surname AS driver2,
+                    c.name AS team,
+                    COUNT(*) AS races_together,
+                    SUM(CASE WHEN pos1 < pos2 THEN 1 ELSE 0 END) AS d1_wins,
+                    SUM(CASE WHEN pos2 < pos1 THEN 1 ELSE 0 END) AS d2_wins
+                FROM teammate_races tr
+                JOIN drivers d1 ON tr.d1 = d1.driverId
+                JOIN drivers d2 ON tr.d2 = d2.driverId
+                JOIN constructors c ON tr.constructorId = c.constructorId
+                GROUP BY tr.d1, tr.d2, tr.constructorId, d1.forename, d1.surname, d2.forename, d2.surname, c.name
+                HAVING COUNT(*) >= 20
+                ORDER BY races_together DESC;
             """
         },
         9: {
@@ -633,12 +710,12 @@ def get_query_definitions():
                 WITH pit_stats AS (
                     SELECT 
                         p.driverId, 
-                        AVG(CAST(p.duration AS FLOAT)) AS avg_duration, 
+                        AVG(TRY_CAST(p.duration AS FLOAT)) AS avg_duration, 
                         COUNT(*) AS stops
                     FROM pit_stops p
                     GROUP BY p.driverId
                 )
-                SELECT TOP 10
+                SELECT
                     d.forename, 
                     d.surname AS driver, 
                     ROUND(ps.avg_duration, 3) AS avg_seconds, 
@@ -652,8 +729,8 @@ def get_query_definitions():
             "title": "History of Constructor Performance on a Specific Circuit",
             "description": "Show how a constructor has performed at a particular circuit over the years.",
             "parameters": [
-                {"name": "constructor", "prompt": "Enter constructor name", "type": str, "validation": lambda x: x.isalpha()},
-                {"name": "circuit", "prompt": "Enter circuit name", "type": str, "validation": lambda x: x.isalpha()}
+                {"name": "constructor", "prompt": "Enter constructor name", "type": str, "validation": lambda x: all(c.isalpha() or c.isspace() for c in x)},
+                {"name": "circuit", "prompt": "Enter circuit name", "type": str, "validation": lambda x: all(c.isalpha() or c.isspace() for c in x)}
             ],
             "query": """
                 WITH team_circuit_performance AS (
@@ -679,18 +756,37 @@ def get_query_definitions():
                     JOIN result r ON d.driverId = r.driverId
                     GROUP BY d.nationality
                 )
-                SELECT TOP 15 nationality, driver_count, total_wins, total_points, 
-                    ROUND(total_points * 1.0 / driver_count, 1) AS avg_points_per_driver
+                SELECT nationality, driver_count, total_wins, total_points, 
+                   FORMAT(ROUND(total_points * 1.0 / driver_count, 1), 'N1') AS avg_points_per_driver
                 FROM nationality_stats 
-                ORDER BY avg_points_per_driver DESC;
+                ORDER BY ROUND(total_points * 1.0 / driver_count, 1) DESC;
             """
         },
         12: {
-            "title": "List All Statuses by Status ID",
-            "description": "Display all race finish statuses (finished, retired, disqualified, etc.).",
+            "title": "Constructor Dominance Seasons (Win Percentage by Year)",
+            "description": "Identifies seasons where a constructor dominated with high win percentage. Shows constructors with at least 3 wins in a season.",
             "parameters": [],
             "query": """
-               SELECT statusID, status FROM status ORDER BY statusID;
+                WITH season_wins AS (
+                    SELECT r.year, res.constructorId, COUNT(*) AS wins
+                    FROM result res
+                    JOIN race r ON res.raceId = r.raceId
+                    WHERE res.position = '1'
+                    GROUP BY r.year, res.constructorId
+                ),
+                season_races AS (
+                    SELECT year, COUNT(*) AS total_races
+                    FROM race
+                    GROUP BY year
+                )
+                SELECT
+                    sw.year, c.name, sw.wins, sr.total_races,
+                    FORMAT(100.0 * sw.wins / sr.total_races, 'N1') + '%' AS win_pct
+                FROM season_wins sw
+                JOIN season_races sr ON sw.year = sr.year
+                JOIN constructors c ON sw.constructorId = c.constructorId
+                WHERE sw.wins >= 3
+                ORDER BY win_pct DESC;
             """
         },
         13: {
@@ -753,7 +849,7 @@ def get_query_definitions():
                 {"name": "year", "prompt": "Enter year", "type": int, "validation": lambda x: 1950 <= x <= 2024}
             ],
             "query": """
-                SELECT TOP 10 
+                SELECT 
                     c.name AS constructor, 
                     COUNT(cr.raceId) AS races_entered, 
                     SUM(cr.points) AS total_points, 
@@ -1024,6 +1120,278 @@ def parse_command(command):
     return action, args
 
 
+def get_table_definitions():
+    """
+    Return table definitions with filterable columns for basic queries.
+    Each table has: display_name, columns to display, and filterable fields with their types.
+    """
+    return {
+        1: {
+            "table": "drivers",
+            "display_name": "Drivers",
+            "columns": ["driverId", "number", "code", "forename", "surname", "dob", "nationality"],
+            "filters": [
+                {"name": "forename", "prompt": "Filter by first name (leave empty to skip)", "type": str, "column": "forename", "operator": "LIKE"},
+                {"name": "surname", "prompt": "Filter by last name (leave empty to skip)", "type": str, "column": "surname", "operator": "LIKE"},
+                {"name": "nationality", "prompt": "Filter by nationality (leave empty to skip)", "type": str, "column": "nationality", "operator": "LIKE"},
+                {"name": "code", "prompt": "Filter by driver code (e.g., HAM, VER) (leave empty to skip)", "type": str, "column": "code", "operator": "="},
+            ]
+        },
+        2: {
+            "table": "constructors",
+            "display_name": "Constructors (Teams)",
+            "columns": ["constructorId", "constructorRef", "name", "nationality"],
+            "filters": [
+                {"name": "name", "prompt": "Filter by team name (leave empty to skip)", "type": str, "column": "name", "operator": "LIKE"},
+                {"name": "nationality", "prompt": "Filter by nationality (leave empty to skip)", "type": str, "column": "nationality", "operator": "LIKE"},
+            ]
+        },
+        3: {
+            "table": "circuits",
+            "display_name": "Circuits",
+            "columns": ["circuitId", "name", "location", "country"],
+            "filters": [
+                {"name": "name", "prompt": "Filter by circuit name (leave empty to skip)", "type": str, "column": "name", "operator": "LIKE"},
+                {"name": "country", "prompt": "Filter by country (leave empty to skip)", "type": str, "column": "country", "operator": "LIKE"},
+                {"name": "location", "prompt": "Filter by location/city (leave empty to skip)", "type": str, "column": "location", "operator": "LIKE"},
+            ]
+        },
+        4: {
+            "table": "race",
+            "display_name": "Races",
+            "columns": ["raceId", "year", "round", "name", "date", "circuitId"],
+            "filters": [
+                {"name": "year", "prompt": "Filter by year (e.g., 2023) (leave empty to skip)", "type": int, "column": "year", "operator": "="},
+                {"name": "name", "prompt": "Filter by race name (e.g., Monaco) (leave empty to skip)", "type": str, "column": "name", "operator": "LIKE"},
+                {"name": "round", "prompt": "Filter by round number (leave empty to skip)", "type": int, "column": "round", "operator": "="},
+            ]
+        },
+        5: {
+            "table": "status",
+            "display_name": "Race Status Codes",
+            "columns": ["statusId", "status"],
+            "filters": [
+                {"name": "status", "prompt": "Filter by status description (e.g., Finished, Accident) (leave empty to skip)", "type": str, "column": "status", "operator": "LIKE"},
+            ]
+        },
+        6: {
+            "table": "result",
+            "display_name": "Race Results",
+            "columns": ["resultId", "raceId", "driverId", "constructorId", "grid", "position", "positionOrder", "points"],
+            "filters": [
+                {"name": "raceId", "prompt": "Filter by race ID (leave empty to skip)", "type": int, "column": "raceId", "operator": "="},
+                {"name": "driverId", "prompt": "Filter by driver ID (leave empty to skip)", "type": int, "column": "driverId", "operator": "="},
+                {"name": "constructorId", "prompt": "Filter by constructor ID (leave empty to skip)", "type": int, "column": "constructorId", "operator": "="},
+                {"name": "positionOrder", "prompt": "Filter by finishing position (e.g., 1 for winner) (leave empty to skip)", "type": int, "column": "positionOrder", "operator": "="},
+            ]
+        },
+        7: {
+            "table": "qualifying",
+            "display_name": "Qualifying Results",
+            "columns": ["qualifyId", "raceId", "driverId", "constructorId", "position", "q1", "q2", "q3"],
+            "filters": [
+                {"name": "raceId", "prompt": "Filter by race ID (leave empty to skip)", "type": int, "column": "raceId", "operator": "="},
+                {"name": "driverId", "prompt": "Filter by driver ID (leave empty to skip)", "type": int, "column": "driverId", "operator": "="},
+                {"name": "position", "prompt": "Filter by qualifying position (leave empty to skip)", "type": int, "column": "position", "operator": "="},
+            ]
+        },
+        8: {
+            "table": "driver_standings",
+            "display_name": "Driver Standings",
+            "columns": ["raceId", "driverId", "points", "position", "wins"],
+            "filters": [
+                {"name": "raceId", "prompt": "Filter by race ID (leave empty to skip)", "type": int, "column": "raceId", "operator": "="},
+                {"name": "driverId", "prompt": "Filter by driver ID (leave empty to skip)", "type": int, "column": "driverId", "operator": "="},
+                {"name": "position", "prompt": "Filter by championship position (leave empty to skip)", "type": int, "column": "position", "operator": "="},
+            ]
+        },
+        9: {
+            "table": "constructor_standings",
+            "display_name": "Constructor Standings",
+            "columns": ["raceId", "constructorId", "points", "position", "wins"],
+            "filters": [
+                {"name": "raceId", "prompt": "Filter by race ID (leave empty to skip)", "type": int, "column": "raceId", "operator": "="},
+                {"name": "constructorId", "prompt": "Filter by constructor ID (leave empty to skip)", "type": int, "column": "constructorId", "operator": "="},
+                {"name": "position", "prompt": "Filter by championship position (leave empty to skip)", "type": int, "column": "position", "operator": "="},
+            ]
+        },
+        10: {
+            "table": "constructor_results",
+            "display_name": "Constructor Results",
+            "columns": ["constructorResultsId", "raceId", "constructorId", "points"],
+            "filters": [
+                {"name": "raceId", "prompt": "Filter by race ID (leave empty to skip)", "type": int, "column": "raceId", "operator": "="},
+                {"name": "constructorId", "prompt": "Filter by constructor ID (leave empty to skip)", "type": int, "column": "constructorId", "operator": "="},
+            ]
+        },
+        11: {
+            "table": "pit_stops",
+            "display_name": "Pit Stops",
+            "columns": ["raceId", "driverId", "stopNumber", "lapNumber", "timeOfStop", "duration"],
+            "filters": [
+                {"name": "raceId", "prompt": "Filter by race ID (leave empty to skip)", "type": int, "column": "raceId", "operator": "="},
+                {"name": "driverId", "prompt": "Filter by driver ID (leave empty to skip)", "type": int, "column": "driverId", "operator": "="},
+            ]
+        },
+        12: {
+            "table": "lap",
+            "display_name": "Lap Times",
+            "columns": ["raceId", "driverId", "lapNumber", "currentPosition", "time"],
+            "filters": [
+                {"name": "raceId", "prompt": "Filter by race ID (leave empty to skip)", "type": int, "column": "raceId", "operator": "="},
+                {"name": "driverId", "prompt": "Filter by driver ID (leave empty to skip)", "type": int, "column": "driverId", "operator": "="},
+                {"name": "lapNumber", "prompt": "Filter by lap number (leave empty to skip)", "type": int, "column": "lapNumber", "operator": "="},
+            ]
+        },
+    }
+
+
+def print_tables_menu():
+    """Display all available tables for basic queries."""
+    tables = get_table_definitions()
+    
+    print_separator()
+    print(f"\033[33m{'BASIC QUERIES - SELECT A TABLE':^80}\033[34m")
+    print_separator()
+    print()
+    
+    print("\033[34m+-----+---------------------------+----------------------------------------+")
+    print("| \033[33m#\033[34m   | \033[33mTable Name\033[34m                | \033[33mDescription\033[34m                              |")
+    print("+-----+---------------------------+----------------------------------------+")
+    
+    for tid, table_info in tables.items():
+        table_name = table_info["table"]
+        display_name = table_info["display_name"]
+        print(f"|\033[33m {tid:<3} \033[34m| {table_name:<25} | {display_name:<38} |")
+    
+    print("+-----+---------------------------+----------------------------------------+")
+    print()
+    print("Enter the table number to query, or '\033[33mQ\033[34m' to go back to main menu.")
+    print()
+
+
+def execute_basic_query(table_id):
+    """
+    Execute a basic query on a table with optional filters.
+    
+    Args:
+        table_id: The ID of the table to query
+    """
+    tables = get_table_definitions()
+    
+    if table_id not in tables:
+        print("\033[38;5;196mInvalid table number. Please select a valid table.\033[34m")
+        return
+    
+    table_info = tables[table_id]
+    table_name = table_info["table"]
+    display_name = table_info["display_name"]
+    columns = table_info["columns"]
+    filters = table_info["filters"]
+    
+    print()
+    print(f"\033[33mQuerying table:\033[34m {display_name} ({table_name})")
+    print(f"\033[33mAvailable columns:\033[34m {', '.join(columns)}")
+    print()
+    print("\033[33mApply filters (press Enter to skip any filter):\033[34m")
+    print()
+    
+    # Collect filter values
+    where_clauses = []
+    param_values = []
+    
+    for filter_def in filters:
+        user_input = input(f"\033[33m{filter_def['prompt']}:\033[34m ").strip()
+        
+        if user_input:  # Only add filter if user provided a value
+            try:
+                if filter_def["type"] == int:
+                    value = int(user_input)
+                    where_clauses.append(f"{filter_def['column']} = %s")
+                    param_values.append(value)
+                else:
+                    if filter_def["operator"] == "LIKE":
+                        where_clauses.append(f"{filter_def['column']} LIKE %s")
+                        param_values.append(f"%{user_input}%")
+                    else:
+                        where_clauses.append(f"{filter_def['column']} = %s")
+                        param_values.append(user_input)
+                print(f"  ✓ Added filter: {filter_def['name']} = {user_input}")
+            except ValueError:
+                print(f"  \033[38;5;196m✗ Invalid value for {filter_def['name']}, skipping filter.\033[34m")
+    
+    # Build the query
+    column_list = ", ".join(columns)
+    sql_query = f"SELECT {column_list} FROM [{table_name}]"
+    
+    if where_clauses:
+        sql_query += " WHERE " + " AND ".join(where_clauses)
+    
+    # Add a reasonable limit to prevent massive result sets
+    sql_query += " ORDER BY 1"  # Order by first column
+    
+    print()
+    print(f"\033[33mExecuting query on {display_name}...\033[34m")
+    print()
+    
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        if param_values:
+            cursor.execute(sql_query, param_values)
+        else:
+            cursor.execute(sql_query)
+        
+        results = cursor.fetchall()
+        
+        # Get column names
+        result_columns = [column[0] for column in cursor.description] if cursor.description else columns
+        
+        # Display results with pagination
+        if result_columns:
+            display_paginated_results(result_columns, results, page_size=10)
+        else:
+            print("Query executed successfully.")
+            if results:
+                print(f"Total rows: {len(results)}")
+        
+        cursor.close()
+        connection.close()
+        
+    except Exception as e:
+        print(f"\033[38;5;196m✗ Error executing query:\033[34m {e}")
+
+
+def basic_queries_menu():
+    """
+    Handle the basic queries submenu.
+    Allows users to select a table and apply filters.
+    """
+    while True:
+        print_tables_menu()
+        
+        choice = input("\033[33mEnter table number:\033[34m ").strip().upper()
+        
+        if choice == 'Q':
+            print()
+            print("Returning to main menu...")
+            return
+        
+        try:
+            table_id = int(choice)
+            execute_basic_query(table_id)
+        except ValueError:
+            print("\033[38;5;196mInvalid input. Please enter a table number or 'Q' to quit.\033[34m")
+        
+        print()
+        continue_choice = input("\033[33mQuery another table? (Y/N):\033[34m ").strip().upper()
+        if continue_choice != 'Y':
+            print()
+            print("Returning to main menu...")
+            return
+
+
 def main():
     """Main application loop."""
     print_welcome()
@@ -1040,6 +1408,9 @@ def main():
         
         if action == "D":
             print_queries()
+        
+        elif action == "B":
+            basic_queries_menu()
         
         elif action == "Q":
             print()
