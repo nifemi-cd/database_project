@@ -1352,6 +1352,7 @@ def main():
             print_separator()
             print(f"{'EXITING F1 DB':^80}")
             print_separator()
+            print("\033[0m")
             sys.exit(0)
         
         elif action == "H":
