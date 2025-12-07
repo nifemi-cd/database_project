@@ -10,14 +10,6 @@ import re
 import pymssql
 
 def get_db_connection():
-    """
-    Establish and return a database connection to MSSQL Server.
-    
-    Returns:
-        pymssql.Connection: Database connection object
-    
-    Note: Update the connection parameters below with your actual database credentials.
-    """
     try:
         # MSSQL Server connection parameters
         # Update these with your actual database credentials
@@ -65,12 +57,9 @@ def convert_sqlite_to_mssql(sql_content):
     Returns:
         SQL content converted to MSSQL format
     """
-    # Remove BEGIN TRANSACTION; and COMMIT; statements
     sql_content = re.sub(r'BEGIN TRANSACTION;?\s*', '', sql_content, flags=re.IGNORECASE)
     sql_content = re.sub(r'COMMIT;?\s*', '', sql_content, flags=re.IGNORECASE)
     
-    # Replace double quotes with square brackets for identifiers
-    # This regex finds "identifier" and replaces with [identifier]
     sql_content = re.sub(r'"([^"]+)"', r'[\1]', sql_content)
     
     return sql_content
@@ -78,13 +67,7 @@ def convert_sqlite_to_mssql(sql_content):
 
 def print_progress_bar(current, total, bar_length=40, prefix="Progress"):
     """
-    Print a progress bar to the console.
-    
-    Args:
-        current: Current progress count
-        total: Total count
-        bar_length: Length of the progress bar
-        prefix: Prefix text for the progress bar
+    Printing a progress bar to the console.
     """
     if total == 0:
         percent = 100
@@ -102,10 +85,6 @@ def print_progress_bar(current, total, bar_length=40, prefix="Progress"):
 
 
 def get_table_deletion_order():
-    """
-    Return the order in which tables should be deleted (dependent tables first).
-    This respects foreign key constraints.
-    """
     return [
         "lap",
         "pit_stops",
@@ -123,11 +102,6 @@ def get_table_deletion_order():
 
 
 def get_seed_file_order():
-    """
-    Return the order in which seed files should be executed (parent tables first).
-    This respects foreign key constraints.
-    tables.sql is first to create tables if they don't exist.
-    """
     return [
         "tables.sql",
         "status.sql",
@@ -148,12 +122,6 @@ def get_seed_file_order():
 def delete_all_data(connection):
     """
     Delete all data from all tables in the correct order.
-    
-    Args:
-        connection: Database connection object
-    
-    Returns:
-        bool: True if successful, False otherwise
     """
     print()
     print_header("DELETING ALL DATA")
@@ -186,12 +154,6 @@ def delete_all_data(connection):
 def count_statements_in_file(file_path):
     """
     Count the number of INSERT statements in a SQL file.
-    
-    Args:
-        file_path: Path to the SQL file
-    
-    Returns:
-        int: Number of INSERT statements
     """
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -206,14 +168,6 @@ def seed_from_file(connection, file_path, file_name):
     Execute all SQL statements from a seed file in one query.
     For tables.sql, executes CREATE TABLE statements with IF NOT EXISTS checks.
     For other files, executes INSERT statements.
-    
-    Args:
-        connection: Database connection object
-        file_path: Path to the SQL file
-        file_name: Name of the file (for display)
-    
-    Returns:
-        tuple: (success_count, error_count)
     """
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -281,12 +235,6 @@ def seed_database(connection):
     """
     Seed the database with data from all seed files.
     Shows a single progress bar for all files.
-    
-    Args:
-        connection: Database connection object
-    
-    Returns:
-        bool: True if successful, False otherwise
     """
     print()
     print_header("\033[33mSEEDING DATABASE\033[34m")
@@ -927,7 +875,7 @@ def execute_query(qid):
     # Collect parameters
     param_values = []
     for param in query_info["parameters"]:
-        hint = " ---------> And other options that will be prompted(depending on number of inputs needed for query)"
+        hint = " ---------> Other options will be prompted(depending on number of inputs required for query to run)"
         if len(query_info["parameters"]) > 1 and param == query_info["parameters"][0]:
             print(f"{param['prompt']}: <value>{hint}")
         value = get_parameter_input(param)
@@ -945,7 +893,7 @@ def execute_query(qid):
         # Get the SQL query
         sql_query = query_info["query"].strip()
         
-        # Skip if query is a placeholder (contains TODO or is empty)
+        # Skip if query is a placeholder 
         if not sql_query or "-- TODO" in sql_query or sql_query.startswith("--"):
             print("Query not yet implemented. Please add the SQL query to the query definition.")
             print_results_placeholder(qid, param_values)
@@ -986,7 +934,6 @@ def execute_query(qid):
 def print_results_placeholder(qid, params):
     """
     Print placeholder results.
-    TODO: Replace with actual result formatting based on query.
     """
     # Example table output format
     print("+------------------------+------------------+")
@@ -1002,11 +949,6 @@ def print_results_placeholder(qid, params):
 def format_results(headers, rows, show_count=True):
     """
     Format and print query results in a table.
-    
-    Args:
-        headers: List of column headers
-        rows: List of tuples containing row data
-        show_count: Whether to show result count at the end
     """
     if not rows:
         print("No results found.")
@@ -1045,11 +987,6 @@ def format_results(headers, rows, show_count=True):
 def display_paginated_results(headers, rows, page_size=10):
     """
     Display results with pagination support.
-    
-    Args:
-        headers: List of column headers
-        rows: List of tuples containing row data
-        page_size: Number of rows per page (default: 10)
     """
     if not rows:
         print("No results found.")
@@ -1273,9 +1210,6 @@ def print_tables_menu():
 def execute_basic_query(table_id):
     """
     Execute a basic query on a table with optional filters.
-    
-    Args:
-        table_id: The ID of the table to query
     """
     tables = get_table_definitions()
     
